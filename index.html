@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indian Cities Monopoly AI Simulation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 20px auto;
+            line-height: 1.6;
+            background-color: #eef1f5;
+            color: #333;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        h1, h2 {
+            color: #2c3e50;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 10px;
+            margin-top: 30px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.2em;
+        }
+        h2 {
+            font-size: 1.5em;
+        }
+        section {
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+        button#startGameBtn { background-color: #28a745; color: white; }
+        button#startGameBtn:hover { background-color: #218838; transform: translateY(-1px); }
+        button#stopGameBtn { background-color: #dc3545; color: white; }
+        button#stopGameBtn:hover { background-color: #c82333; transform: translateY(-1px); }
+        button:disabled {
+            background-color: #adb5bd;
+            cursor: not-allowed;
+        }
+        #controls p {
+            display: inline-block;
+            margin-left: 15px;
+            font-size: 0.95em;
+            color: #555;
+        }
+        #speedSlider {
+            width: 180px;
+            vertical-align: middle;
+            margin-left: 8px;
+        }
+        #gameStatus p {
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            color: #444;
+        }
+        #gameStatus span {
+            font-weight: bold;
+            color: #007bff;
+        }
+        #portfolioList, #logList {
+            list-style-type: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #f0f0f0;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            padding: 10px;
+        }
+        #portfolioList li, #logList li {
+            padding: 8px 5px;
+            border-bottom: 1px dashed #e9ecef;
+            font-size: 0.9em;
+        }
+        #portfolioList li:last-child, #logList li:last-child {
+            border-bottom: none;
+        }
+        #logList li.buy { color: #28a745; }
+        #logList li.sell { color: #dc3545; }
+        #logList li.info { color: #007bff; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Indian Cities Monopoly AI Simulation</h1>
+    </header>
+
+    <main>
+        <section id="controls">
+            <h2>Simulation Controls</h2>
+            <button id="startGameBtn">Start Simulation</button>
+            <button id="stopGameBtn" disabled>Stop Simulation</button>
+            <p>
+                Simulation Speed: <input type="range" id="speedSlider" min="200" max="3000" value="1000"> <span id="speedValue">1000</span> ms/turn
+            </p>
+        </section>
+
+        <section id="gameStatus">
+            <h2>AI Player Status</h2>
+            <p>AI Money: <span id="aiMoney">₹1500</span></p>
+            <p>Current Turn: <span id="currentTurn">0</span></p>
+            <p>AI Position: <span id="aiPositionDisplay">Start</span></p>
+        </section>
+
+        <section id="aiPortfolio">
+            <h2>AI Portfolio</h2>
+            <ul id="portfolioList">
+                <li>No properties owned yet.</li>
+            </ul>
+        </section>
+
+        <section id="gameLog">
+            <h2>Game Log</h2>
+            <ul id="logList">
+                <li class="info">Welcome to the Indian Cities Monopoly AI Simulation!</li>
+                <li class="info">Click "Start Simulation" to begin.</li>
+            </ul>
+        </section>
+    </main>
+
+    <script>
+        const initialProperties = [
+            { id: 0, name: "Delhi", price: 200, rent: 20, color: "red" },
+            { id: 1, name: "Mumbai", price: 400, rent: 40, color: "darkblue" },
+            { id: 2, name: "Bengaluru", price: 300, rent: 30, color: "green" },
+            { id: 3, name: "Chennai", price: 250, rent: 25, color: "yellow" },
+            { id: 4, name: "Kolkata", price: 220, rent: 22, color: "lightblue" },
+            { id: 5, name: "Hyderabad", price: 280, rent: 28, color: "orange" },
+            { id: 6, name: "Pune", price: 180, rent: 18, color: "pink" },
+            { id: 7, name: "Ahmedabad", price: 150, rent: 15, color: "brown" },
+            { id: 8, name: "Jaipur", price: 120, rent: 12, color: "teal" },
+            { id: 9, name: "Lucknow", price: 100, rent: 10, color: "purple" },
+        ];
+
+        let propertiesOnBoard = []; // Represents the actual board state with owners
+        let aiMoney = 1500;
+        let aiPosition = 0; // Index on propertiesOnBoard
+        let turnCount = 0;
+        let gameLog = [];
+        let gameIntervalId = null;
+        let simulationSpeed = 1000; // milliseconds per turn
+
+        // DOM Elements
+        const aiMoneySpan = document.getElementById('aiMoney');
+        const currentTurnSpan = document.getElementById('currentTurn');
+        const aiPositionDisplay = document.getElementById('aiPositionDisplay');
+        const portfolioList = document.getElementById('portfolioList');
+        const logList = document.getElementById('logList');
+        const startGameBtn = document.getElementById('startGameBtn');
+        const stopGameBtn = document.getElementById('stopGameBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValueSpan = document.getElementById('speedValue');
+
+        function initGame() {
+            aiMoney = 1500;
+            aiPosition = 0;
+            turnCount = 0;
+            gameLog = [];
+            
+            // Create a fresh board state
+            propertiesOnBoard = initialProperties.map(prop => ({ ...prop, owner: null }));
+
+            addLog("Simulation initialized.", "info");
+            updateUI();
+            startGameBtn.disabled = false;
+            stopGameBtn.disabled = true;
+        }
+
+        function addLog(message, type = "info") {
+            const listItem = document.createElement('li');
+            listItem.textContent = `Turn ${turnCount}: ${message}`;
+            listItem.classList.add(type);
+            logList.prepend(listItem); // Add to top of the log
+            // Keep log size manageable
+            if (logList.children.length > 50) {
+                logList.removeChild(logList.lastChild);
+            }
+        }
+
+        function updateUI() {
+            aiMoneySpan.textContent = `₹${aiMoney}`;
+            currentTurnSpan.textContent = turnCount;
+            aiPositionDisplay.textContent = propertiesOnBoard[aiPosition] ? propertiesOnBoard[aiPosition].name : "N/A";
+
+            portfolioList.innerHTML = '';
+            const ownedProperties = propertiesOnBoard.filter(p => p.owner === 'AI');
+            if (ownedProperties.length === 0) {
+                const listItem = document.createElement('li');
+                listItem.textContent = 'No properties owned yet.';
+                portfolioList.appendChild(listItem);
+            } else {
+                ownedProperties.forEach(prop => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `${prop.name} (Price: ₹${prop.price}, Rent: ₹${prop.rent})`;
+                    portfolioList.appendChild(listItem);
+                });
+            }
+        }
+
+        function rollDice() {
+            return Math.floor(Math.random() * 6) + 1; // 1 to 6
+        }
+
+        function aiDecideToBuy(property) {
+            // Simple AI: Buy if AI has enough money (e.g., more than 1.5 times the property price as a buffer)
+            if (aiMoney >= property.price * 1.5) {
+                aiMoney -= property.price;
+                property.owner = 'AI';
+                addLog(`AI bought ${property.name} for ₹${property.price}.`, "buy");
+                return true;
+            }
+            addLog(`AI decided not to buy ${property.name} (not enough funds or buffer).`);
+            return false;
+        }
+
+        function aiDecideToSell() {
+            // Simple AI: If in debt, sell the cheapest property to cover it.
+            if (aiMoney < -500) { // Only sell if significantly in debt
+                const ownedProperties = propertiesOnBoard.filter(p => p.owner === 'AI');
+                if (ownedProperties.length > 0) {
+                    // Sort by price ascending to sell the cheapest first
+                    ownedProperties.sort((a, b) => a.price - b.price);
+                    const propertyToSell = ownedProperties[0];
+
+                    propertyToSell.owner = null;
+                    // Sell for half price (common Monopoly rule)
+                    aiMoney += propertyToSell.price / 2;
+                    addLog(`AI sold ${propertyToSell.name} for ₹${propertyToSell.price / 2} to reduce debt.`, "sell");
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function takeTurn() {
+            turnCount++;
+            addLog("AI starts its turn.", "info");
+
+            // Roll dice and move
+            const diceRoll = rollDice();
+            addLog(`AI rolled a ${diceRoll}.`);
+            aiPosition = (aiPosition + diceRoll) % propertiesOnBoard.length;
+            
+            const currentProperty = propertiesOnBoard[aiPosition];
+            addLog(`AI landed on ${currentProperty.name}.`);
+
+            // Check property status
+            if (currentProperty.owner === null) {
+                // Property is unowned, AI decides to buy
+                aiDecideToBuy(currentProperty);
+            } else if (currentProperty.owner === 'AI') {
+                // Property is owned by AI, nothing happens for a single-player AI simulation
+                addLog(`AI already owns ${currentProperty.name}.`);
+            } else {
+                // Property owned by another player (not implemented in this single-AI simulation)
+                // For completeness, if there were other players, AI would pay rent here.
+                addLog(`AI landed on ${currentProperty.name}, owned by someone else (no rent in single AI mode).`);
+            }
+
+            // AI decides if it needs to sell
+            aiDecideToSell();
+
+            // AI earns a little income each turn for simulation to continue
+            aiMoney += 50; 
+            addLog("AI collected ₹50 income this turn.", "info");
+
+            updateUI();
+
+            // Check for game over condition (e.g., AI goes bankrupt without properties to sell)
+            if (aiMoney < -1000 && propertiesOnBoard.filter(p => p.owner === 'AI').length === 0) {
+                addLog("AI went bankrupt! Simulation stopped.", "error");
+                stopGame();
+                startGameBtn.disabled = true; // Cannot restart if bankrupt
+            }
+        }
+
+        function startGame() {
+            if (gameIntervalId) return; // Prevent multiple intervals
+            startGameBtn.disabled = true;
+            stopGameBtn.disabled = false;
+            addLog("Simulation started!", "info");
+            gameIntervalId = setInterval(takeTurn, simulationSpeed);
+        }
+
+        function stopGame() {
+            clearInterval(gameIntervalId);
+            gameIntervalId = null;
+            startGameBtn.disabled = false;
+            stopGameBtn.disabled = true;
+            addLog("Simulation stopped.", "info");
+        }
+
+        // Event Listeners
+        startGameBtn.addEventListener('click', startGame);
+        stopGameBtn.addEventListener('click', stopGame);
+        speedSlider.addEventListener('input', (event) => {
+            simulationSpeed = parseInt(event.target.value, 10);
+            speedValueSpan.textContent = simulationSpeed;
+            // If game is running, restart interval with new speed
+            if (gameIntervalId) {
+                stopGame();
+                startGame();
+            }
+        });
+
+        // Initial setup
+        initGame();
+
+    </script>
+</body>
+</html>
